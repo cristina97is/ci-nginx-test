@@ -1,55 +1,58 @@
-name: CI Test for Nginx Container
+name: CI Nginx Test
 
 on:
   push:
     paths:
-      - "index.html"
+      - 'index.html'
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: |
-          docker build -t test-nginx .
-        shell: bash
+    - name: Set up Docker
+      uses: docker/setup-buildx-action@v2
 
-      - name: Run container
-        run: |
-          docker run -d --rm --name test-nginx -p 9889:80 test-nginx
-          sleep 5
-        shell: bash
+    - name: Build Nginx container
+      run: |
+        docker build -t test-nginx .
 
-      - name: Check HTTP response code
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9889)
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ HTTP code is $STATUS instead of 200"
-            exit 1
-          fi
-        shell: bash
+    - name: Run container
+      run: |
+        docker run -d --name test-nginx -p 9889:80 test-nginx
+        sleep 5
 
-      - name: Compare MD5 checksum
-        run: |
-          echo "Force failure for Telegram test"
+    - name: Check HTTP response code
+      run: |
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9889)
+        if [ "$STATUS" != "200" ]; then
+          echo "❌ HTTP code is $STATUS instead of 200"
           exit 1
-        shell: bash
+        fi
 
-      - name: Stop container
-        if: always()
-        run: |
-          docker stop test-nginx || true
-        shell: bash
-      - name: Notify on failure
-        if: failure()
-        env:
-          TG_TOKEN: ${{ secrets.TG_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-            -d chat_id="${TG_CHAT_ID}" \
-            -d text="❌ CI failed for repository $GITHUB_REPOSITORY at commit $GITHUB_SHA"
+    - name: Compare MD5 checksum
+      run: |
+        LOCAL_MD5=$(md5sum index.html | awk '{print $1}')
+        REMOTE_MD5=$(curl -s http://localhost:9889 | md5sum | awk '{print $1}')
+        if [ "$LOCAL_MD5" != "$REMOTE_MD5" ]; then
+          echo "❌ MD5 mismatch!"
+          exit 1
+        fi
+
+    - name: Stop container
+      if: always()
+      run: |
+        docker stop test-nginx || true
+
+    - name: Notify on failure
+      if: failure()
+      env:
+        TG_TOKEN: ${{ secrets.TG_TOKEN }}
+        TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      run: |
+        curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+        -d chat_id="${TG_CHAT_ID}" \
+        -d text="❌ CI failed for repository $GITHUB_REPOSITORY at commit $GITHUB_SHA"
