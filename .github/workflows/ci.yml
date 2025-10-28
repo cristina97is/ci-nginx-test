@@ -35,12 +35,8 @@ jobs:
 
       - name: Compare MD5 checksum
         run: |
-          LOCAL_MD5=$(md5sum index.html | awk '{print $1}')
-          REMOTE_MD5=$(curl -s http://localhost:9889 | md5sum | awk '{print $1}')
-          if [ "$LOCAL_MD5" != "$REMOTE_MD5" ]; then
-            echo "❌ MD5 mismatch!"
-            exit 1
-          fi
+          echo "Force failure for Telegram test"
+          exit 1
         shell: bash
 
       - name: Stop container
