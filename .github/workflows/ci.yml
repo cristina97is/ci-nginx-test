@@ -48,3 +48,12 @@ jobs:
         run: |
           docker stop test-nginx || true
         shell: bash
+      - name: Notify on failure
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d text="❌ CI failed for repository $GITHUB_REPOSITORY at commit $GITHUB_SHA"
